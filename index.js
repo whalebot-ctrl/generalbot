@@ -256,11 +256,3 @@ bot.on('callback_query', (query) => {
   bot.answerCallbackQuery(query.id);
 });
 
-// Health check endpoint
-app.get("/", (req, res) => {
-  res.send("Bot is running fine ✅");
-});
-
-app.listen(PORT, () => {
-  console.log(`Health check server running on port ${PORT}`);
-});
