@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 8080;
 const token = process.env.BOT_TOKEN;
 const ownerId = process.env.OWNER_ID;
 const formUnstaticURL = process.env.FORM_UNSTATIC_URL;
-const appUrl = process.env.APP_URL; // Add this in Railway (https://your-app.up.railway.app)
+const appUrl = process.env.APP_URL; // https://your-app.up.railway.app
 
 if (!token || !ownerId || !formUnstaticURL || !appUrl) {
   console.error(
@@ -22,29 +22,20 @@ if (!token || !ownerId || !formUnstaticURL || !appUrl) {
   throw new Error('Missing required environment variables!');
 }
 
-// Create bot WITHOUT polling (webhook mode)
-const bot = new TelegramBot(token, { webHook: true });
+// Create bot WITHOUT polling
+const bot = new TelegramBot(token);
 
-// First clear old webhooks, then set the new one
-bot
-  .deleteWebHook()
-  .then(() => {
-    bot
-      .setWebHook(`${appUrl}/bot${token}`)
-      .then(() => {
-        console.log(`✅ Webhook set to ${appUrl}/bot${token}`);
-      })
-      .catch((err) => console.error('Error setting webhook:', err.message));
-  })
-  .catch((err) => console.error('Error deleting old webhook:', err.message));
-
-// Webhook endpoint (Telegram will POST updates here)
+// ✅ Webhook endpoint (Telegram will POST updates here)
 app.post(`/bot${token}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
-// Health check endpoint
+// ✅ Health check endpoints
+app.get('/', (req, res) => {
+  res.status(200).send('Bot is live 🚀');
+});
+
 app.get('/health', (req, res) => {
   res.status(200).send('Bot is running ✅');
 });
@@ -55,7 +46,7 @@ const chatStates = {};
 // Function to send data to FormUnstatic
 const sendToFormUnstatic = async (name, message) => {
   if (!name || !message) {
-    console.error('⚠️ Missing name or message for FormUnstatic submission.');
+    console.error('Missing name or message for FormUnstatic submission.');
     return;
   }
 
@@ -266,7 +257,14 @@ bot.on('callback_query', (query) => {
   bot.answerCallbackQuery(query.id);
 });
 
-// Start server
-app.listen(PORT, () => {
+// ✅ Start server, then set webhook
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+
+  try {
+    await bot.setWebHook(`${appUrl}/bot${token}`);
+    console.log(`✅ Webhook set to ${appUrl}/bot${token}`);
+  } catch (err) {
+    console.error('❌ Failed to set webhook:', err.message);
+  }
 });
