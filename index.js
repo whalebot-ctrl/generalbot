@@ -26,7 +26,7 @@ if (!token || !ownerId || !formUnstaticURL) {
   console.error(
     'Missing required environment variables. Check your .env file.'
   );
-  process.exit(1);
+  throw new Error('Missing required environment variables!');
 }
 
 const bot = new TelegramBot(token, { polling: true });
@@ -255,4 +255,3 @@ bot.on('callback_query', (query) => {
 
   bot.answerCallbackQuery(query.id);
 });
-
