@@ -13,7 +13,8 @@ const PORT = process.env.PORT || 8080;
 const token = process.env.BOT_TOKEN;
 const ownerId = process.env.OWNER_ID;
 const formUnstaticURL = process.env.FORM_UNSTATIC_URL;
-const appUrl = process.env.APP_URL; // https://your-app.up.railway.app
+const appUrl = process.env.APP_URL; // e.g. https://energetic-success.up.railway.app
+const webhookSecret = process.env.WEBHOOK_SECRET || 'supersecret123';
 
 if (!token || !ownerId || !formUnstaticURL || !appUrl) {
   console.error(
@@ -26,7 +27,7 @@ if (!token || !ownerId || !formUnstaticURL || !appUrl) {
 const bot = new TelegramBot(token);
 
 // ✅ Webhook endpoint (Telegram will POST updates here)
-app.post(`/bot${token}`, (req, res) => {
+app.post(`/${webhookSecret}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
@@ -262,8 +263,8 @@ app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
 
   try {
-    await bot.setWebHook(`${appUrl}/bot${token}`);
-    console.log(`✅ Webhook set to ${appUrl}/bot${token}`);
+    await bot.setWebHook(`${appUrl}/${webhookSecret}`);
+    console.log(`✅ Webhook set to ${appUrl}/${webhookSecret}`);
   } catch (err) {
     console.error('❌ Failed to set webhook:', err.message);
   }
