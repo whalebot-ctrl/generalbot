@@ -119,6 +119,17 @@ bot.on('message', (msg) => {
 // /start command and menus
 const handledUpdateIds = new Set();
 
+app.post(`/${webhookSecret}`, (req, res) => {
+  const update = req.body;
+  if (handledUpdateIds.has(update.update_id)) {
+    return res.sendStatus(200); // ignore duplicate
+  }
+  handledUpdateIds.add(update.update_id);
+
+  bot.processUpdate(update).catch(console.error);
+  res.sendStatus(200);
+});
+
 bot.onText(/\/start/, (msg) => {
   if (handledUpdateIds.has(msg.update_id)) return;
   handledUpdateIds.add(msg.update_id);
