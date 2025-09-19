@@ -117,7 +117,12 @@ bot.on('message', (msg) => {
 });
 
 // /start command and menus
+const handledUpdateIds = new Set();
+
 bot.onText(/\/start/, (msg) => {
+  if (handledUpdateIds.has(msg.update_id)) return;
+  handledUpdateIds.add(msg.update_id);
+
   const chatId = msg.chat.id;
   const message = `🌠 Welcome to the Resolve Decentralized Database
 
